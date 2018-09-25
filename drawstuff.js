@@ -290,7 +290,7 @@ function drawRandPixelsInInputTriangles(context, phong_flag) {
                 var pixel = add(add(corners[2], multiply_constant(subtract(corners[3], corners[2]), tt)), 
                                 multiply_constant(subtract(corners[0], corners[2]), ss));
                 var direction = subtract(pixel, eye);
-                var ray = new Ray(eye, direction);
+                ray = new Ray(eye, direction);
                 var result = triangle_intersection(triangles, ray);
                 //console.log("result:" + result[0] + " , " + result[1]);
                 //test.push(result[0]);
@@ -298,9 +298,12 @@ function drawRandPixelsInInputTriangles(context, phong_flag) {
                     c = new Color(0, 0, 0, 255)
                 }
                 else{
-                    var point = add(eye, multiply_constant(ray, result[1]));
+                    var point = add(ray.origin, multiply_constant(ray.direction, result[1]));
                     if (phong_flag){
-                        
+                        var v1 = subtract(triangles[result[0]].y, triangles[result[0]].x);
+                        var v2 = subtract(triangles[result[0]].z, triangles[result[0]].x);
+                        var N = normalize(cross_product(v1, v2));
+                        c = blinnPhong(point, N, materials[result[0]]);
                     }
                     else{                     
                         c = new Color(materials[result[0]].diffuse[0]*255,
@@ -313,7 +316,6 @@ function drawRandPixelsInInputTriangles(context, phong_flag) {
             }
         }
     } // end for files
-    //console.log(test)
     context.putImageData(imagedata, 0, 0);
 } // end if triangle file found
 
@@ -326,10 +328,10 @@ function triangle_intersection(triangles, ray)
     for(var i = 0; i < triangles.length; i++){
         var v1 = subtract(triangles[i].y, triangles[i].x);
         var v2 = subtract(triangles[i].z, triangles[i].x);
-        var cross_v1v2 = cross_product(v1, v2);
+        //var cross_v1v2 = cross_product(v1, v2);
         //var N = multiply_constant(cross_v1v2, 1/Math.sqrt(dot(cross_v1v2, cross_v1v2)));
-        var N = multiply_constant(cross_v1v2, 1/Math.sqrt(dot(cross_v1v2, cross_v1v2)));
-        
+        //var N = multiply_constant(cross_v1v2, 1/Math.sqrt(dot(cross_v1v2, cross_v1v2)));
+        var N = normalize(cross_product(v1, v2));
         var w = dot(N, subtract(triangles[i].x, ray.origin)) / dot(N, ray.direction);
         var p = add(ray.origin, multiply_constant(ray.direction, w));
         var v3 = subtract(p, triangles[i].x);
@@ -359,6 +361,21 @@ function triangle_intersection(triangles, ray)
     return t_values 
 }
 
+function blinnPhong(point, N, material){
+    var V = normalize(subtract(ray.origin, point));  
+    var L = normalize(subtract(light.position, point));  
+    var H = normalize(add(V, L));  
+    var NdotL = dot(N, L);                                           
+    var NdotHeN = Math.pow(dot(N, H), material.n);
+
+    var Red = Math.max(0, material.ambient[0]*light.ambient) + Math.max(0, material.diffuse[0]*light.diffuse*NdotL) + 
+                Math.max(0, material.specular[0]*light.specular*NdotHeN);
+    var Green = Math.max(0, material.ambient[1]*light.ambient) + Math.max(0, material.diffuse[1]*light.diffuse*NdotL) + 
+                Math.max(0, material.specular[1]*light.specular*NdotHeN);
+    var Blue = Math.max(0, material.ambient[2]*light.ambient) + Math.max(0, material.diffuse[2]*light.diffuse*NdotL) + 
+                Math.max(0, material.specular[2]*light.specular*NdotHeN);
+    return new Color(Red*255, Green*255, Blue*255, 255);   
+}
 
 function multiply_constant(a, c) {
     return {x: a.x*c, y: a.y*c, z: a.z*c};
@@ -368,6 +385,14 @@ function cross_product(a, b){
     return {x:(a.y*b.z)-(a.z*b.y), 
             y:(a.z*b.x) - (a.x*b.z), 
             z:(a.x*b.y) - (a.y*b.x)};
+}
+
+// Normalizes an xyz vector
+function normalize(a)
+{
+  var magnitude = Math.sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
+  return multiply_constant(a, 1/magnitude);
+  //return {x: a.x/magnitude, y: a.y/magnitude, z: a.z/magnitude};
 }
 
 // dot product
@@ -393,10 +418,17 @@ function main() {
     // Get the canvas and context
     var canvas = document.getElementById("viewport"); 
     var context = canvas.getContext("2d");
-    var eye = {x: 0.5, y: 0.5, z: -0.5};
-    var view_up = {x: 0, y: 1, z: 0};
-    var lookat = {x: 0, y: 0, z: 1};
-    var light = {position: {x:-3, y:1, z:-0.5}, ambient:1, diffuse:1, specular:1};
+    var canvas_phong = document.getElementById("blinnPhong");
+    var context_phong = canvas_phong.getContext("2d");
+
+    light = {position: {x: -3, y: 1, z: -0.5}, 
+            ambient: 1, 
+            diffuse: 1, 
+            specular: 1};
+    eye = {x: 0.5, y: 0.5, z: -0.5};
+    view_up = {x: 0, y: 1, z: 0};
+    lookat = {x: 0, y: 0, z: 1};
+    
     // Create the image
     //drawRandPixels(context);
       // shows how to draw pixels
@@ -408,7 +440,7 @@ function main() {
       // shows how to read input file, but not how to draw pixels
     
     drawRandPixelsInInputTriangles(context, false);
-    drawRandPixelsInInputTriangles(context, true);
+    drawRandPixelsInInputTriangles(context_phong, true);
     // shows how to draw pixels and read input file
     
     //drawInputTrainglesUsingPaths(context);
