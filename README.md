@@ -1,4 +1,3 @@
-# prog1-2018-shell
-This repo branch contains the shell for program 1 from cg class 2018 at nc state (ray tracing triangles). 
-
-It currently contains the 2017 shell, and needs to be improved.
+# RayCasting Assignment 
+1. Raycast the colored triangles in the input file without lighting
+2. Color the triangles with Blinn-Phong illumination
