@@ -61,6 +61,7 @@ function drawPixel(imagedata,x,y,color) {
     } // end try
     
     catch(e) {
+        console.log(imagedata, x, y, color)
         console.log(e);
     }
 } // end drawPixel
@@ -218,16 +219,51 @@ function drawInputEllipsoidsUsingArcs(context) {
     } // end if ellipsoids found
 } // end draw input ellipsoids
 
+function getTriangles(file_triangles){
+    var triangles = new Array();
+    var tn = file_triangles.triangles.length;
+    for(var t=0; t<tn; t++){
+        var vertex1 = file_triangles.triangles[t][0];
+        var vertex2 = file_triangles.triangles[t][1];
+        var vertex3 = file_triangles.triangles[t][2];
+
+        var vertexPos1 = file_triangles.vertices[vertex1];
+        var vertexPos2 = file_triangles.vertices[vertex2];
+        var vertexPos3 = file_triangles.vertices[vertex3];
+        
+        var v1 = {x:vertexPos1[0], y:vertexPos1[1], z:vertexPos1[2]};
+        var v2 = {x:vertexPos2[0], y:vertexPos2[1], z:vertexPos2[2]};
+        var v3 = {x:vertexPos3[0], y:vertexPos3[1], z:vertexPos3[2]};
+
+
+        // triangle position on canvas
+        //var v1 = [w*vertexPos1[0], h*vertexPos1[1]];
+        //var v2 = [w*vertexPos2[0], h*vertexPos2[1]];
+        //var v3 = [w*vertexPos3[0], h*vertexPos3[1]];
+        triangles.push({x: v1, y: v2, z: v3})
+    }
+    return triangles
+}
+
 //put random points in the triangles from the class github
-function drawRandPixelsInInputTriangles(context) {
+function drawRandPixelsInInputTriangles(context, eye) {
     var inputTriangles = getInputTriangles();
     var w = context.canvas.width;
     var h = context.canvas.height;
     var imagedata = context.createImageData(w,h);
-    const PIXEL_DENSITY = 0.1;
-    var numCanvasPixels = (w*h)*PIXEL_DENSITY; 
-    
-    if (inputTriangles != String.null) { 
+    const PIXEL_DENSITY = 10;
+    //var numCanvasPixels = (w*h)*PIXEL_DENSITY;
+    //var light_intensity = [1, 1, 1]; // white light 
+    //var light_loc = { x: -2*eye.z, y: 4*eye.z, z: -0.5+6*eye.z}; // light location
+    var corners = [{x:0, y:0, z:0}, 
+                    {x:1, y:0, z:0},
+                    {x:0, y:1, z:0},
+                    {x:1, y:1, z:0}]
+    if (inputTriangles != String.null) {
+        var Ray = function(origin, direction) {
+            this.origin = origin;
+            this.direction = direction;
+        } 
         var x = 0; var y = 0; // pixel coord init
         var cx = 0; var cy = 0; // init center x and y coord
         var numTrianglePixels = 0; // init num pixels in triangle
@@ -238,110 +274,109 @@ function drawRandPixelsInInputTriangles(context) {
         // Loop over the triangles, draw rand pixels in each
         for (var f=0; f<n; f++) {
         	var tn = inputTriangles[f].triangles.length;
-        	//console.log("number of triangles in this files: " + tn);
-        	
-        	// Loop over the triangles, draw each in 2d
-        	for(var t=0; t<tn; t++){
-        		var vertex1 = inputTriangles[f].triangles[t][0];
-        		var vertex2 = inputTriangles[f].triangles[t][1];
-        		var vertex3 = inputTriangles[f].triangles[t][2];
+        	console.log("number of triangles in this files: " + tn);
+            // Loop over the triangles, draw each in 2d 
+            var triangles = getTriangles(inputTriangles[f])
+            var material = inputTriangles[f].material
+            // calculate triangle area on canvas (shoelace formula)
+            // var triangleArea = 0.5*Math.abs(v1[0]*v2[1]+v2[0]*v3[1]+v3[0]*v1[1]-v2[0]*v1[1]-v3[0]*v2[1]-v1[0]*v3[1]);
+            // var numTrianglePixels = triangleArea; // init num pixels in triangle
+            //console.log("triangle area " + triangleArea);
+            // numTrianglePixels *= PIXEL_DENSITY; // percentage of triangle area to render to pixels
+            // numTrianglePixels = Math.round(numTrianglePixels);
+            // console.log("numTrianglePixels " + numTrianglePixels);
+            for(var i = 0; i < w; i++){
+                // Go through the pixels on the row
+                var tt = i/w;
+                for(var j = 0; j < h; j++){
+                    var ss = j/h;
+                    var pixel = add(add(corners[2], multiply_constant(subtract(corners[3], corners[2]), tt)), 
+                                    multiply_constant(subtract(corners[0], corners[2]), ss))
+                    var direction = subtract(pixel, eye);
+                    var ray = new Ray(eye, direction);
+                    var result = triangle_intersection(triangles, ray);
+                    if (result[0] == -1){
+                        c = new Color(0, 0, 0, 255)
+                    }
+                    else{  
+                        c.change(
+                            material.diffuse[0]*255,
+                            material.diffuse[1]*255,
+                            material.diffuse[2]*255,
+                            255); // triangle diffuse color
+                    }
+                    drawPixel(imagedata, i, j, c);
+                }
+            }
+        } // end for pixels in triangle
+    } // end for files
+    context.putImageData(imagedata, 0, 0);
+} // end if triangle file found
 
-        		var vertexPos1 = inputTriangles[f].vertices[vertex1];
-        		var vertexPos2 = inputTriangles[f].vertices[vertex2];
-        		var vertexPos3 = inputTriangles[f].vertices[vertex3];
-        		//console.log("vertexPos1 " + vertexPos1);
-        		//console.log("vertexPos2 " + vertexPos2);
-        		//console.log("vertexPos3 " + vertexPos3);
-        		
-        		// triangle position on canvas
-        		
-        		var v1 = [w*vertexPos1[0], h*vertexPos1[1]];
-        		var v2 = [w*vertexPos2[0], h*vertexPos2[1]];
-        		var v3 = [w*vertexPos3[0], h*vertexPos3[1]];
-        		
-        		// calculate triangle area on canvas (shoelace formula)
-        		var triangleArea = 0.5*Math.abs(v1[0]*v2[1]+v2[0]*v3[1]+v3[0]*v1[1]-v2[0]*v1[1]-v3[0]*v2[1]-v1[0]*v3[1]);
-        		var numTrianglePixels = triangleArea; // init num pixels in triangle
-            	//console.log("triangle area " + triangleArea);
-            	numTrianglePixels *= PIXEL_DENSITY; // percentage of triangle area to render to pixels
-            	numTrianglePixels = Math.round(numTrianglePixels);
-            	// console.log("numTrianglePixels " + numTrianglePixels);
-            	c.change(
-            		inputTriangles[f].material.diffuse[0]*255,
-                	inputTriangles[f].material.diffuse[1]*255,
-                	inputTriangles[f].material.diffuse[2]*255,
-                	255); // triangle diffuse color
-            	for (var p=0; p<numTrianglePixels; p++) {
-                    var point; // on canvas plane
-            		var triangleTest = 0;
-            		while (triangleTest == 0 ){ //if the pixel outside the triangle
-                  
-            			point = [Math.floor(Math.random()*w), Math.floor(Math.random()*h)];
-                    	// plane checking
-            			
-                    	var t1 = ((point[0]-v2[0]) * (v1[1] - v2[1]) - (v1[0] - v2[0]) * (point[1] - v2[1])) < 0.0;
-                    	var t2 = ((point[0]-v3[0]) * (v2[1] - v3[1]) - (v2[0] - v3[0]) * (point[1] - v3[1])) < 0.0;
-                    	var t3 = ((point[0]-v1[0]) * (v3[1] - v1[1]) - (v3[0] - v1[0]) * (point[1] - v1[1])) < 0.0;
-                    	
-                    	if((t1==t2)&&(t2==t3)) // draw the pixel if inside the triangle
-                    		triangleTest = 1;
-            		}
-            		drawPixel(imagedata,point[0],point[1],c);
-                	//console.log("color: ("+c.r+","+c.g+","+c.b+")");
-                	//console.log("x: "+ x);
-                	//console.log("y: "+ y);
-            	} // end for pixels in triangle
-        	} // end for triangles
-    	} // end for files
-        context.putImageData(imagedata, 0, 0);
-    } // end if triangle file found
-} // end draw rand pixels in input triangles
 
-//draw 2d projections traingle from the JSON file at class github
-function drawInputTrainglesUsingPaths(context) {
-    var inputTriangles = getInputTriangles();
-    
-    if (inputTriangles != String.null) { 
-        var c = new Color(0,0,0,0); // the color at the pixel: black
-        var w = context.canvas.width;
-        var h = context.canvas.height;
-        var n = inputTriangles.length; 
-        //console.log("number of files: " + n);
+// Determines if the ray intersects given the radius and center of the sphere,
+// and returns -1.0 if there are no intersections,
+function triangle_intersection(triangles, ray)
+{
+    var t_values = [-1, Number.MAX_VALUE];
+    for(var i = 0; i < triangles.length; i++){
+        var v1 = subtract(triangles[i].y, triangles[i].x);
+        var v2 = subtract(triangles[i].z, triangles[i].x);
+        var cross_v1v2 = cross_product(v1, v2);
+        
+        var N = multiply_constant(cross_v1v2, 1/Math.sqrt(dot(cross_v1v2, cross_v1v2)));
+        var w = dot(N, subtract(triangles[i].x, ray.origin)) / dot(N, ray.direction);
+        var p = add(ray.origin, multiply_constant(ray.direction, w));
+        var v3 = subtract(p, triangles[i].x);
 
-        // Loop over the input files
-        for (var f=0; f<n; f++) {
-        	var tn = inputTriangles[f].triangles.length;
-        	//console.log("number of triangles in this files: " + tn);
-        	
-        	// Loop over the triangles, draw each in 2d
-        	for(var t=0; t<tn; t++){
-        		var vertex1 = inputTriangles[f].triangles[t][0];
-        		var vertex2 = inputTriangles[f].triangles[t][1];
-        		var vertex3 = inputTriangles[f].triangles[t][2];
+        var n1 = (dot(v1, v2)*dot(v3, v2)) - (dot(v2, v2)*dot(v1, v3));
+        var n2 = (dot(v1, v2)*dot(v1, v3)) - (dot(v1, v1)*dot(v3, v2));
+        var d = (dot(v1, v2)*dot(v1, v2)) - (dot(v1, v1)*dot(v2, v2));
 
-        		var vertexPos1 = inputTriangles[f].vertices[vertex1];
-        		var vertexPos2 = inputTriangles[f].vertices[vertex2];
-        		var vertexPos3 = inputTriangles[f].vertices[vertex3];
-        		//console.log("vertexPos1 " + vertexPos1);
-        		//console.log("vertexPos2 " + vertexPos2);
-        		//console.log("vertexPos3 " + vertexPos3);
-        		
-            	context.fillStyle = 
-            	    "rgb(" + Math.floor(inputTriangles[f].material.diffuse[0]*255)
-            	    +","+ Math.floor(inputTriangles[f].material.diffuse[1]*255)
-            	    +","+ Math.floor(inputTriangles[f].material.diffuse[2]*255) +")"; // diffuse color
-            
-            	var path=new Path2D();
-            	path.moveTo(w*vertexPos1[0],h*vertexPos1[1]);
-            	path.lineTo(w*vertexPos2[0],h*vertexPos2[1]);
-            	path.lineTo(w*vertexPos3[0],h*vertexPos3[1]);
-            	path.closePath();
-            	context.fill(path);
+        var beta = n1/d;
+        var gamma = n2/d;
 
-        	} // end for triangles
-        } // end for files
-    } // end if triangle files found
-} // end draw input triangles
+        var t = null;
+        if (beta < 0 || gamma < 0 || (beta + gamma) > 1) {
+            t = -1;
+        }
+        else {
+            t = w;
+        }
+
+        if (t != -1){
+            if (t < t_values[1]){
+                t_values[1] = t;
+                t_values[0] = i;
+            }
+        }
+    }
+    return t_values 
+}
+
+
+function multiply_constant(a, c) {
+    return {x: a.x*c, y: a.y*c, z: a.z*c};
+}
+
+function cross_product(a, b){
+    return {x:(a.y*b.z)-(a.z*b.y), y:(a.z*b.x) - (a.x*b.z), z:(a.x*b.y) - (a.y*b.x)}
+}
+
+// dot product
+function dot(a, b) {
+    return a.x*b.x + a.y*b.y + a.z*b.z;
+}
+
+// substract
+function subtract(a, b) {
+    return {x: a.x-b.x, y: a.y-b.y, z: a.z-b.z };
+}
+
+// add
+function add(a, b) {
+    return {x: a.x+b.x, y: a.y+b.y, z: a.z+b.z };
+}
 
 
 /* main -- here is where execution begins after window load */
@@ -351,7 +386,9 @@ function main() {
     // Get the canvas and context
     var canvas = document.getElementById("viewport"); 
     var context = canvas.getContext("2d");
- 
+    var eye = {x: 0.5, y: 0.5, z: -0.5};
+    var view_up = {x: 0, y: 1, z: 0};
+    var lookat = {x: 0, y: 0, z: 1};
     // Create the image
     //drawRandPixels(context);
       // shows how to draw pixels
@@ -362,7 +399,7 @@ function main() {
     //drawInputEllipsoidsUsingArcs(context);
       // shows how to read input file, but not how to draw pixels
     
-    drawRandPixelsInInputTriangles(context);
+    drawRandPixelsInInputTriangles(context, eye);
     // shows how to draw pixels and read input file
     
     //drawInputTrainglesUsingPaths(context);
